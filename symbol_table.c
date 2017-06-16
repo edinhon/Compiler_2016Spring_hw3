@@ -1,21 +1,26 @@
-#include <symbol_table.h>
+#include "symbol_table.h"
 #include <string.h>
+
+symbol_entry table[MAX_TABLE_SIZE];
+int cur_counter;
+int cur_scope;
 
 
 void init_table() {
 	cur_scope = 0;
 	cur_counter = 0;
-	memset(table, 0, sizeof(struct symbol_entry));
+	memset(table, 0, sizeof(symbol_entry));
 }
 
 
-char* install_symbol (char *s) {
+char* install_symbol (char *s, int stack_counter) {
 	
 	if(cur_counter > MAX_TABLE_SIZE) {
 		printf("Symbol Table is full.\n");
 	} else {
 		strcpy(table[cur_counter].name, s);
 		table[cur_counter].scope = cur_scope;
+		table[cur_counter].offset = stack_counter;
 		cur_counter++;
 	}
 	
