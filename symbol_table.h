@@ -22,6 +22,7 @@ extern symbol_entry table[MAX_TABLE_SIZE];
 #define M_FUNC 0
 #define M_VAR 1
 #define M_ARGU 2
+#define M_CONST 3
 
 extern int cur_scope;
 extern int cur_counter;

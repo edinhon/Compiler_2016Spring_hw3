@@ -50,15 +50,21 @@ void set_symbol_type_bool (int idx) {
 
 /***************Mode****************/
 void set_symbol_mode_func(int idx) {
+	
 	table[idx].mode = M_FUNC;
 }
 
 void set_symbol_mode_var(int idx) {
+	
 	table[idx].mode = M_VAR;
 }
 
 void set_symbol_mode_argu(int idx) {
 	table[idx].mode = M_ARGU;
+}
+
+void set_symbol_mode_const(int idx) {
+	table[idx].mode = M_CONST;
 }
 
 
@@ -78,11 +84,11 @@ int look_up_symbol(char *s) {
 	return -1;
 }
 
-void pop_up_symbol(char *s) {
+void pop_up_symbol() {
 	
 	int i;
 	
-	if(cur_counter == 0) return; 
+	if(cur_counter == 0 || cur_scope == 0) return; 
 	for(i = cur_counter ; i >= 0 ; i--){
 		if(table[i].scope < cur_scope) {
 			cur_counter = i+1;

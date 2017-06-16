@@ -97,6 +97,42 @@ char tokenBuf[2048];
 	strcat(srcBuf, yytext);
 }
 
+digitalWrite {
+	strcat(tokenBuf, "#id:");
+	strcat(tokenBuf, yytext);
+	strcat(tokenBuf, "\n");
+	strcat(srcBuf, yytext);
+	
+	return DIGITALWRITE;
+}
+
+delay {
+	strcat(tokenBuf, "#id:");
+	strcat(tokenBuf, yytext);
+	strcat(tokenBuf, "\n");
+	strcat(srcBuf, yytext);
+	
+	return DELAY;
+}
+
+HIGH {
+	strcat(tokenBuf, "#integer:");
+	strcat(tokenBuf, yytext);
+	strcat(tokenBuf, "\n");
+	strcat(srcBuf, yytext);
+	
+	return HIGH;
+}
+
+LOW {
+	strcat(tokenBuf, "#integer:");
+	strcat(tokenBuf, yytext);
+	strcat(tokenBuf, "\n");
+	strcat(srcBuf, yytext);
+	
+	return LOW;
+}
+
 for|while|do|if|else|switch|return|break|continue|struct|case|default {
 	/*Keywords Function*/
 	strcat(tokenBuf, "#key:");
