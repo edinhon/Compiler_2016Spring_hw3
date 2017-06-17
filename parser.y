@@ -407,13 +407,13 @@ expr: 		var											{	int idx = look_up_symbol($1);
 		|	ID OPER_PP									{	int idx = look_up_symbol($1);
 															fprintf(fp, "lwi	$r0, [$sp+%d]\n", table[idx].offset);
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
-															fprintf(fp, "addi	$r0, 1\n");
+															fprintf(fp, "addi	$r0, $r0, 1\n");
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", table[idx].offset);
 															stack_counter += 4;}
 		|	ID OPER_SS									{	int idx = look_up_symbol($1);
 															fprintf(fp, "lwi	$r0, [$sp+%d]\n", table[idx].offset);
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
-															fprintf(fp, "addi	$r0, -1\n");
+															fprintf(fp, "addi	$r0, $r0, -1\n");
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", table[idx].offset);
 															stack_counter += 4;}
 		|	'-' expr %prec UMINUS						{	fprintf(fp, "movi	$r0, 0\n");
