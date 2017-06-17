@@ -275,6 +275,7 @@ remove|rename|tmpfile|tmpnam|fclose|fflush|fopen|freopen|setbuf|setvbuf|fprintf|
 	strcat(tokenBuf, "\n");
 	strcat(srcBuf, yytext);
 	
+	strcpy(yylval.cmper, yytext);
 	return OPER_CMP;
 }
 

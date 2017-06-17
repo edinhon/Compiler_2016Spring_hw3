@@ -22,17 +22,20 @@ bool global_flag = false;
 %union{
 	int intVal;
 	char ident[32];
+	char cmper[4];
 }
 
 %token KEY_FOR KEY_WHILE KEY_DO KEY_IF KEY_ELSE KEY_SWTICH KEY_RETURN KEY_BREAK KEY_CONTINUE KEY_STRUCT KEY_CASE KEY_DEFAULT
 %token KEY_NULL KEY_TRUE KEY_FALSE
 %token KEY_CONST
 %token TYPE_INT TYPE_DOUBLE TYPE_CHAR TYPE_BOOL TYPE_VOID
-%token OPER_PP OPER_SS OPER_AA OPER_OO OPER_CMP
+%token OPER_PP OPER_SS OPER_AA OPER_OO
 %token SCI DOUBLE CHAR STR
 %token <intVal> INT
 %token <ident> ID
 %type <ident> var scalar_id const_id
+%token <cmper> OPER_CMP
+
 %token DIGITALWRITE DELAY HIGH LOW
 
 
@@ -530,7 +533,44 @@ expr: 		var											{	int idx = look_up_symbol($1);
 															stack_counter += 4;}
 		|	expr OPER_CMP expr							{	fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-8);
 															fprintf(fp, "lwi	$r1, [$sp+%d]\n", stack_counter-4);
-															stack_counter -= 8;}
+															stack_counter -= 8;
+															if(!strcmp($2, "<")){
+																fprintf(fp, "slts	$r0, $r0, $r1\n");
+																fprintf(fp, "zeb	$r0, $r0\n");
+																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+																stack_counter += 4;
+															} else if (!strcmp($2, "<=")){
+																fprintf(fp, "slts	$r0, $r0, $r1\n");
+																fprintf(fp, "xori	$r0, $r0, 1\n");
+																fprintf(fp, "zeb	$r0, $r0\n");
+																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+																stack_counter += 4;
+															} else if (!strcmp($2, ">")){
+																fprintf(fp, "slts	$r0, $r1, $r0\n");
+																fprintf(fp, "zeb	$r0, $r0\n");
+																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+																stack_counter += 4;
+															} else if (!strcmp($2, ">=")){
+																fprintf(fp, "slts	$r0, $r1, $r0\n");
+																fprintf(fp, "xori	$r0, $r0, 1\n");
+																fprintf(fp, "zeb	$r0, $r0\n");
+																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+																stack_counter += 4;
+															} else if (!strcmp($2, "==")){
+																fprintf(fp, "xor	$r0, $r0, $r1\n");
+																fprintf(fp, "slti	$r0, $r0, 1\n");
+																fprintf(fp, "zeb	$r0, $r0\n");
+																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+																stack_counter += 4;
+															} else if (!strcmp($2, "!=")){
+																fprintf(fp, "xor	$r0, $r0, $r1\n");
+																fprintf(fp, "movi	$r1, 0\n");
+																fprintf(fp, "slt	$r0, $r1, $r0\n");
+																fprintf(fp, "zeb	$r0, $r0\n");
+																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+																stack_counter += 4;
+															}
+														}
 		|	'!' expr									{	}
 		|	expr OPER_AA expr							{	}
 		|	expr OPER_OO expr							{	}
