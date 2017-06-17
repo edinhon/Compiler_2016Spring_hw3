@@ -13,10 +13,15 @@ extern int cur_scope;
 extern symbol_entry table[2048];
 int stack_counter = 0;
 int label_counter = 1;
+int if_label = 0;
+int if_label_2 = 0;
+int while_begin_label = 0;
+int while_end_label = 0;
 
 FILE *fp;
 
 bool global_flag = false;
+bool void_flag = false;
 %}
 
 %start program
@@ -62,30 +67,15 @@ program_in_func:
 		|	statement_in_func program_in_func
 		;
 		
-program_in_void_func:
-			statement_in_void_func
-		|	statement_in_void_func program_in_void_func
-		;
-		
 program_in_case:
 			statement_in_case
 		|	statement_in_case program_in_case
-		;
-		
-program_in_void_case:
-			statement_in_void_case
-		|	statement_in_void_case program_in_void_case
 		;
 		
 program_in_compound:
 			statement_in_compound
 		|	statement_in_compound program_in_compound
 		;	
-		
-program_in_void_compound:
-			statement_in_void_compound
-		|	statement_in_void_compound program_in_void_compound
-		;
 
 statement:	declare
 		|	func_invocation ';'
@@ -105,20 +95,6 @@ statement_in_func:
 		|	expr ';'
 		;
 		
-statement_in_void_func:	
-			declare_in_func
-		|	simple_statement
-		|	void_compound_statement
-		|	void_if_else_statement
-		|	void_switch_statement
-		|	void_while_statement
-		|	void_for_statement
-		|	KEY_BREAK ';'
-		|	KEY_CONTINUE ';'
-		|	return_void_statement
-		|	expr ';'
-		;
-		
 statement_in_compound:
 			declare_in_func
 		|	simple_statement
@@ -130,19 +106,6 @@ statement_in_compound:
 		|	KEY_BREAK ';'
 		|	KEY_CONTINUE ';'
 		|	return_statement
-		|	expr ';'
-		;
-		
-statement_in_void_compound:
-			declare_in_func
-		|	simple_statement
-		|	void_compound_statement
-		|	void_if_else_statement
-		|	void_switch_statement
-		|	void_while_statement
-		|	void_for_statement
-		|	KEY_BREAK ';'
-		|	KEY_CONTINUE ';'
 		|	return_void_statement
 		|	expr ';'
 		;
@@ -157,18 +120,6 @@ statement_in_case:
 		|	KEY_BREAK ';'
 		|	KEY_CONTINUE ';'
 		|	return_statement
-		|	expr ';'
-		;
-		
-statement_in_void_case:	
-			simple_statement
-		|	void_compound_statement
-		|	void_if_else_statement
-		|	void_switch_statement
-		|	void_while_statement
-		|	void_for_statement
-		|	KEY_BREAK ';'
-		|	KEY_CONTINUE ';'
 		|	return_void_statement
 		|	expr ';'
 		;
@@ -231,10 +182,14 @@ declare_function:
 declare_void_function:
 			func_id '(' ')' ';'								
 		|	func_id '(' paras ')' ';'						
-		|	func_id '(' ')' left_curly right_curly			{global_flag = true;} 
-		|	func_id '(' paras ')' left_curly right_curly	{global_flag = true;} 
-		|	func_id '(' ')' left_curly program_in_void_func right_curly			{global_flag = true;} 
-		|	func_id '(' paras ')' left_curly program_in_void_func right_curly	{global_flag = true;} 
+		|	func_id '(' ')' left_curly right_curly			{	global_flag = true;
+																void_flag = false;} 
+		|	func_id '(' paras ')' left_curly right_curly	{	global_flag = true;
+																void_flag = false;}
+		|	func_id '(' ')' left_curly program_in_func return_void_statement right_curly			{	global_flag = true;
+																										void_flag = false;}
+		|	func_id '(' paras ')' left_curly program_in_func return_void_statement right_curly		{	global_flag = true;
+																										void_flag = false;}
 		;
 		
 func_id:	ID											{	int idx;
@@ -254,7 +209,8 @@ type:		TYPE_INT									{set_symbol_type_int(cur_counter);}
 		|	TYPE_BOOL									{set_symbol_type_bool(cur_counter);}
 		;
 		
-type_void:	TYPE_VOID									{set_symbol_type_void(cur_counter);}
+type_void:	TYPE_VOID									{	set_symbol_type_void(cur_counter);
+															void_flag = true;}
 		
 scalar:		scalar_id									{	}
 		|	scalar_id '=' expr							{	int idx = look_up_symbol($1);
@@ -321,51 +277,40 @@ compound_statement:
 		|	left_curly right_curly
 		;
 		
-void_compound_statement:
-			left_curly program_in_void_compound right_curly
-		|	left_curly right_curly
-		;
-		
 if_else_statement:
-			KEY_IF '(' expr ')' left_curly program_in_compound right_curly 
-		KEY_ELSE left_curly program_in_compound right_curly
-		|	KEY_IF '(' expr ')' left_curly right_curly 
-		KEY_ELSE left_curly program_in_compound right_curly
-		|	KEY_IF '(' expr ')' left_curly program_in_compound right_curly 
-		KEY_ELSE left_curly right_curly
-		|	KEY_IF '(' expr ')' left_curly right_curly 
-		KEY_ELSE left_curly right_curly
+			if_condition if_scope
+		KEY_ELSE left_curly program_in_compound right_curly					{	fprintf(fp, ".L%d:\n", if_label_2);}
 		
-		|	KEY_IF '(' expr ')' left_curly program_in_compound right_curly
-		|	KEY_IF '(' expr ')' left_curly right_curly
+		|	if_condition if_scope
+		KEY_ELSE left_curly right_curly										{	fprintf(fp, ".L%d:\n", if_label_2);}
+		
+		|	if_condition left_curly program_in_compound right_curly			{	fprintf(fp, ".L%d:\n", if_label);}
+		|	if_condition left_curly right_curly								{	fprintf(fp, ".L%d:\n", if_label);}
 		;
 		
-void_if_else_statement:
-			KEY_IF '(' expr ')' left_curly program_in_void_compound right_curly 
-		KEY_ELSE left_curly program_in_void_compound right_curly
-		|	KEY_IF '(' expr ')' left_curly right_curly 
-		KEY_ELSE left_curly program_in_void_compound right_curly
-		|	KEY_IF '(' expr ')' left_curly program_in_void_compound right_curly 
-		KEY_ELSE left_curly right_curly
-		|	KEY_IF '(' expr ')' left_curly right_curly 
-		KEY_ELSE left_curly right_curly
-		
-		|	KEY_IF '(' expr ')' left_curly program_in_void_compound right_curly
-		|	KEY_IF '(' expr ')' left_curly right_curly
+if_condition:
+			KEY_IF '(' expr ')'							{	fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-4);
+															stack_counter -= 4;
+															fprintf(fp, "beqz	$r0, .L%d\n", label_counter);
+															if_label = label_counter;
+															label_counter++;}
 		;
-
+		
+if_scope:	left_curly program_in_compound right_curly	{	fprintf(fp, "j	.L%d\n", label_counter);
+															if_label_2 = label_counter;
+															label_counter++;
+															fprintf(fp, ".L%d:\n", if_label);}
+		|	left_curly right_curly						{	fprintf(fp, "j	.L%d\n", label_counter);
+															if_label_2 = label_counter;
+															label_counter++;
+															fprintf(fp, ".L%d:\n", if_label);}
+		;
+		
 switch_statement:
 			KEY_SWTICH '(' ID ')' left_curly case_statements right_curly
 		|	KEY_SWTICH '(' ID ')' left_curly case_statements default_statement right_curly
 		|	KEY_SWTICH '(' ID ')' left_curly program_in_compound case_statements right_curly
 		|	KEY_SWTICH '(' ID ')' left_curly program_in_compound case_statements default_statement right_curly
-		;
-		
-void_switch_statement:
-			KEY_SWTICH '(' ID ')' left_curly void_case_statements right_curly
-		|	KEY_SWTICH '(' ID ')' left_curly void_case_statements void_default_statement right_curly
-		|	KEY_SWTICH '(' ID ')' left_curly program_in_void_compound void_case_statements right_curly
-		|	KEY_SWTICH '(' ID ')' left_curly program_in_void_compound void_case_statements void_default_statement right_curly
 		;
 		
 case_const:	INT
@@ -384,31 +329,26 @@ default_statement:
 		|	KEY_DEFAULT ':'
 		;
 		
-void_case_statements:
-			KEY_CASE case_const ':' program_in_void_case
-		|	KEY_CASE case_const ':' program_in_void_case void_case_statements
-		|	KEY_CASE case_const ':'
-		|	KEY_CASE case_const ':' void_case_statements
-		;
-
-void_default_statement:
-			KEY_DEFAULT ':' program_in_void_case
-		|	KEY_DEFAULT ':'
-		;
-		
 while_statement:
-			KEY_WHILE '(' expr ')' left_curly program_in_compound right_curly
-		|	KEY_WHILE '(' expr ')' left_curly right_curly
+			while_condition left_curly program_in_compound right_curly	{	fprintf(fp, "j	.L%d\n", while_begin_label);
+																			fprintf(fp, ".L%d:\n", while_end_label);}
+		|	while_condition left_curly right_curly						{	fprintf(fp, "j	.L%d\n", while_begin_label);
+																			fprintf(fp, ".L%d:\n", while_end_label);}
 		|	KEY_DO left_curly program_in_compound right_curly KEY_WHILE '(' expr ')' ';'
 		|	KEY_DO left_curly right_curly KEY_WHILE '(' expr ')' ';'
 		;
 		
-void_while_statement:
-			KEY_WHILE '(' expr ')' left_curly program_in_void_compound right_curly
-		|	KEY_WHILE '(' expr ')' left_curly right_curly
-		|	KEY_DO left_curly program_in_void_compound right_curly KEY_WHILE '(' expr ')' ';'
-		|	KEY_DO left_curly right_curly KEY_WHILE '(' expr ')' ';'
-		;
+while_condition:
+			while_token '(' expr ')'					{	fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-4);
+															stack_counter -= 4;
+															fprintf(fp, "beqz	$r0, .L%d\n", label_counter);
+															while_end_label = label_counter;
+															label_counter++;}
+		
+while_token:
+			KEY_WHILE									{	fprintf(fp, ".L%d:\n", label_counter);
+															while_begin_label = label_counter;
+															label_counter++;}
 		
 for_statement:
 			KEY_FOR '(' for_paras ';' expr ';' for_paras ')' left_curly program_in_compound right_curly
@@ -436,32 +376,6 @@ for_statement:
 		|	KEY_FOR '(' ';' ';' ')' left_curly right_curly
 		;
 		
-void_for_statement:
-			KEY_FOR '(' for_paras ';' expr ';' for_paras ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' for_paras ';' expr ';' for_paras ')' left_curly right_curly
-		
-		|	KEY_FOR '(' for_paras ';' ';' for_paras ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' for_paras ';' ';' for_paras ')' left_curly right_curly
-		
-		|	KEY_FOR '(' for_paras ';' expr ';' ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' for_paras ';' expr ';' ')' left_curly right_curly
-		
-		|	KEY_FOR '(' for_paras ';' ';' ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' for_paras ';' ';' ')' left_curly right_curly
-		
-		|	KEY_FOR '(' ';' expr ';' for_paras ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' ';' expr ';' for_paras ')' left_curly right_curly
-		
-		|	KEY_FOR '(' ';' ';' for_paras ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' ';' ';' for_paras ')' left_curly right_curly
-		
-		|	KEY_FOR '(' ';' expr ';' ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' ';' expr ';' ')' left_curly right_curly
-		
-		|	KEY_FOR '(' ';' ';' ')' left_curly program_in_void_compound right_curly
-		|	KEY_FOR '(' ';' ';' ')' left_curly right_curly
-		;
-		
 for_paras:	expr
 		|	var '=' expr
 		|	expr ',' for_paras
@@ -469,11 +383,17 @@ for_paras:	expr
 		;
 		
 return_statement:
-			KEY_RETURN expr ';'							{	}
+			KEY_RETURN expr ';'							{	if(void_flag){
+																fprintf(stderr, "Error at line %d: Return value in void function.\n", num_line);
+																exit(1);
+															}}
 		;
 		
 return_void_statement:
-			KEY_RETURN ';'								{	}
+			KEY_RETURN ';'								{	if(!void_flag){
+																fprintf(stderr, "Error at line %d: Return void in non-void function.\n", num_line);
+																exit(1);
+															}}
 		;
 		
 exprs:		expr

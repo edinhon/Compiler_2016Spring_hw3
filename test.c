@@ -1,8 +1,10 @@
 int main() {
   int a = 3000;
-  int b = 3000;
+  int b = 4000;
 
-  b = a / 3 + b * 3 - b;
+  while(a < b){
+	a = a + 500;
+  }
 
   digitalWrite(13, HIGH);
   delay(a);
