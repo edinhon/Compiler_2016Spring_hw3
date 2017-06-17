@@ -532,7 +532,7 @@ expr: 		var											{	int idx = look_up_symbol($1);
 																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
 																stack_counter += 4;
 															} else if (!strcmp($2, "<=")){
-																fprintf(fp, "slts	$r0, $r0, $r1\n");
+																fprintf(fp, "slts	$r0, $r1, $r0\n");
 																fprintf(fp, "xori	$r0, $r0, 1\n");
 																fprintf(fp, "zeb	$r0, $r0\n");
 																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
@@ -543,7 +543,7 @@ expr: 		var											{	int idx = look_up_symbol($1);
 																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
 																stack_counter += 4;
 															} else if (!strcmp($2, ">=")){
-																fprintf(fp, "slts	$r0, $r1, $r0\n");
+																fprintf(fp, "slts	$r0, $r0, $r1\n");
 																fprintf(fp, "xori	$r0, $r0, 1\n");
 																fprintf(fp, "zeb	$r0, $r0\n");
 																fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
