@@ -11,6 +11,7 @@ extern char* yytext;
 extern int cur_counter;
 extern int cur_scope;
 extern symbol_entry table[2048];
+
 int stack_counter = 0;
 int label_counter = 1;
 int if_label = 0;
@@ -18,10 +19,14 @@ int if_label_2 = 0;
 int while_begin_label = 0;
 int while_end_label = 0;
 
+int type_flag = 0;
+
 FILE *fp;
 
 bool global_flag = false;
 bool void_flag = false;
+bool break_flag = false;
+bool continue_flag = false;
 %}
 
 %start program
@@ -39,8 +44,8 @@ bool void_flag = false;
 %token SCI DOUBLE CHAR STR
 %token <intVal> INT
 %token <ident> ID
-%type <ident> var scalar_id const_id
 %token <cmper> OPER_CMP
+%type <ident> var scalar_id const_id
 
 %token DIGITALWRITE DELAY HIGH LOW
 
@@ -90,8 +95,8 @@ statement_in_func:
 		|	switch_statement
 		|	while_statement
 		|	for_statement
-		|	KEY_BREAK ';'
-		|	KEY_CONTINUE ';'
+		|	break_statement
+		|	continue_statement
 		|	expr ';'
 		;
 		
@@ -103,8 +108,8 @@ statement_in_compound:
 		|	switch_statement
 		|	while_statement
 		|	for_statement
-		|	KEY_BREAK ';'
-		|	KEY_CONTINUE ';'
+		|	break_statement
+		|	continue_statement
 		|	return_statement
 		|	return_void_statement
 		|	expr ';'
@@ -117,8 +122,8 @@ statement_in_case:
 		|	switch_statement
 		|	while_statement
 		|	for_statement
-		|	KEY_BREAK ';'
-		|	KEY_CONTINUE ';'
+		|	break_statement
+		|	continue_statement
 		|	return_statement
 		|	return_void_statement
 		|	expr ';'
@@ -267,6 +272,10 @@ var:		ID											{	strcpy($$, $1);}
 
 simple_statement:
 			var '=' expr ';'							{	int idx = look_up_symbol($1);
+															if(idx == -1){
+																fprintf(stderr, "Error at line %d: Un-declaration in variable: %s.\n", num_line, $1);
+																exit(1);
+															}
 															fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-4);
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", table[idx].offset);
 															stack_counter -= 4;}
@@ -307,11 +316,14 @@ if_scope:	left_curly program_in_compound right_curly	{	fprintf(fp, "j	.L%d\n", l
 		;
 		
 switch_statement:
-			KEY_SWTICH '(' ID ')' left_curly case_statements right_curly
-		|	KEY_SWTICH '(' ID ')' left_curly case_statements default_statement right_curly
-		|	KEY_SWTICH '(' ID ')' left_curly program_in_compound case_statements right_curly
-		|	KEY_SWTICH '(' ID ')' left_curly program_in_compound case_statements default_statement right_curly
+			switch_token '(' ID ')' left_curly case_statements right_curly											{	break_flag = false;}
+		|	switch_token '(' ID ')' left_curly case_statements default_statement right_curly						{	break_flag = false;}
+		|	switch_token '(' ID ')' left_curly program_in_compound case_statements right_curly						{	break_flag = false;}
+		|	switch_token '(' ID ')' left_curly program_in_compound case_statements default_statement right_curly	{	break_flag = false;}
 		;
+		
+switch_token:
+			KEY_SWTICH									{	break_flag = true;}
 		
 case_const:	INT
 		|	CHAR
@@ -331,11 +343,17 @@ default_statement:
 		
 while_statement:
 			while_condition left_curly program_in_compound right_curly	{	fprintf(fp, "j	.L%d\n", while_begin_label);
-																			fprintf(fp, ".L%d:\n", while_end_label);}
+																			fprintf(fp, ".L%d:\n", while_end_label);
+																			break_flag = false;
+																			continue_flag = false;}
 		|	while_condition left_curly right_curly						{	fprintf(fp, "j	.L%d\n", while_begin_label);
-																			fprintf(fp, ".L%d:\n", while_end_label);}
-		|	KEY_DO left_curly program_in_compound right_curly KEY_WHILE '(' expr ')' ';'
-		|	KEY_DO left_curly right_curly KEY_WHILE '(' expr ')' ';'
+																			fprintf(fp, ".L%d:\n", while_end_label);
+																			break_flag = false;
+																			continue_flag = false;}
+		|	do_token left_curly program_in_compound right_curly KEY_WHILE '(' expr ')' ';'	{	break_flag = false;
+																								continue_flag = false;}
+		|	do_token left_curly right_curly KEY_WHILE '(' expr ')' ';'						{	break_flag = false;
+																								continue_flag = false;}
 		;
 		
 while_condition:
@@ -348,32 +366,59 @@ while_condition:
 while_token:
 			KEY_WHILE									{	fprintf(fp, ".L%d:\n", label_counter);
 															while_begin_label = label_counter;
-															label_counter++;}
+															label_counter++;
+															break_flag = true;
+															continue_flag = true;}
+		;
+		
+do_token:	KEY_DO										{	break_flag = true;
+															continue_flag = true;}
+		;
 		
 for_statement:
-			KEY_FOR '(' for_paras ';' expr ';' for_paras ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' for_paras ';' expr ';' for_paras ')' left_curly right_curly
+			for_token '(' for_paras ';' expr ';' for_paras ')' left_curly program_in_compound right_curly	{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' for_paras ';' expr ';' for_paras ')' left_curly right_curly						{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' for_paras ';' ';' for_paras ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' for_paras ';' ';' for_paras ')' left_curly right_curly
+		|	for_token '(' for_paras ';' ';' for_paras ')' left_curly program_in_compound right_curly		{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' for_paras ';' ';' for_paras ')' left_curly right_curly							{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' for_paras ';' expr ';' ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' for_paras ';' expr ';' ')' left_curly right_curly
+		|	for_token '(' for_paras ';' expr ';' ')' left_curly program_in_compound right_curly				{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' for_paras ';' expr ';' ')' left_curly right_curly									{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' for_paras ';' ';' ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' for_paras ';' ';' ')' left_curly right_curly
+		|	for_token '(' for_paras ';' ';' ')' left_curly program_in_compound right_curly					{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' for_paras ';' ';' ')' left_curly right_curly										{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' ';' expr ';' for_paras ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' ';' expr ';' for_paras ')' left_curly right_curly
+		|	for_token '(' ';' expr ';' for_paras ')' left_curly program_in_compound right_curly				{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' ';' expr ';' for_paras ')' left_curly right_curly									{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' ';' ';' for_paras ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' ';' ';' for_paras ')' left_curly right_curly
+		|	for_token '(' ';' ';' for_paras ')' left_curly program_in_compound right_curly					{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' ';' ';' for_paras ')' left_curly right_curly										{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' ';' expr ';' ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' ';' expr ';' ')' left_curly right_curly
+		|	for_token '(' ';' expr ';' ')' left_curly program_in_compound right_curly						{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' ';' expr ';' ')' left_curly right_curly											{	break_flag = false;
+																												continue_flag = false;}
 		
-		|	KEY_FOR '(' ';' ';' ')' left_curly program_in_compound right_curly
-		|	KEY_FOR '(' ';' ';' ')' left_curly right_curly
+		|	for_token '(' ';' ';' ')' left_curly program_in_compound right_curly							{	break_flag = false;
+																												continue_flag = false;}
+		|	for_token '(' ';' ';' ')' left_curly right_curly												{	break_flag = false;
+																												continue_flag = false;}
+		;
+		
+for_token:	KEY_FOR										{	break_flag = true;
+															continue_flag = true;}
 		;
 		
 for_paras:	expr
@@ -396,21 +441,47 @@ return_void_statement:
 															}}
 		;
 		
+break_statement:
+			KEY_BREAK ';'								{	if(!break_flag){
+																fprintf(stderr, "Error at line %d: break only exists in swtich & loop.\n", num_line);
+																exit(1);
+															}}
+		;
+		
+continue_statement:
+			KEY_CONTINUE ';'							{	if(!continue_flag){
+																fprintf(stderr, "Error at line %d: continue only exists in loop.\n", num_line);
+																exit(1);
+															}}
+		;
+		
 exprs:		expr
 		|	expr ',' exprs
 		;
 
 expr: 		var											{	int idx = look_up_symbol($1);
+															if(idx == -1){
+																fprintf(stderr, "Error at line %d: Un-declaration in variable: %s.\n", num_line, $1);
+																exit(1);
+															}
 															fprintf(fp, "lwi	$r0, [$sp+%d]\n", table[idx].offset);
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
 															stack_counter += 4;}
 		|	ID OPER_PP									{	int idx = look_up_symbol($1);
+															if(idx == -1){
+																fprintf(stderr, "Error at line %d: Un-declaration in variable: %s.\n", num_line, $1);
+																exit(1);
+															}
 															fprintf(fp, "lwi	$r0, [$sp+%d]\n", table[idx].offset);
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
 															fprintf(fp, "addi	$r0, $r0, 1\n");
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", table[idx].offset);
 															stack_counter += 4;}
 		|	ID OPER_SS									{	int idx = look_up_symbol($1);
+															if(idx == -1){
+																fprintf(stderr, "Error at line %d: Un-declaration in variable: %s.\n", num_line, $1);
+																exit(1);
+															}
 															fprintf(fp, "lwi	$r0, [$sp+%d]\n", table[idx].offset);
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
 															fprintf(fp, "addi	$r0, $r0, -1\n");
@@ -535,9 +606,9 @@ expr: 		var											{	int idx = look_up_symbol($1);
 															label_counter++;
 															stack_counter += 4;}
 		|	'(' expr ')'								{	}
-		|	val
-		|	ID '(' ')'
-		|	ID '(' exprs ')'
+		|	val											{	}
+		|	ID '(' ')'									{	}
+		|	ID '(' exprs ')'							{	}
 		|	DIGITALWRITE '(' INT ',' HIGH ')'			{	fprintf(fp, "movi	$r0, %d\n", $3);
 															fprintf(fp, "movi	$r1, 1\n");
 															fprintf(fp, "bal	digitalWrite\n");}
@@ -554,7 +625,7 @@ val:		SCI
 															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
 															stack_counter += 4;}
 		|	DOUBLE
-		|	CHAR										{	}
+		|	CHAR
 		|	STR
 		|	KEY_NULL
 		|	KEY_TRUE
@@ -597,6 +668,7 @@ int main(void){
 	yyparse();
 	if(!global_flag) yyerror("");
 	fprintf(stdout, "%s\n", "No syntax error!");
+	fclose(fp);
 	return 0;
 }
 
