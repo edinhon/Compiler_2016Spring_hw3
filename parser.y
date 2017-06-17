@@ -12,6 +12,7 @@ extern int cur_counter;
 extern int cur_scope;
 extern symbol_entry table[2048];
 int stack_counter = 0;
+int label_counter = 1;
 
 FILE *fp;
 
@@ -571,9 +572,48 @@ expr: 		var											{	int idx = look_up_symbol($1);
 																stack_counter += 4;
 															}
 														}
-		|	'!' expr									{	}
-		|	expr OPER_AA expr							{	}
-		|	expr OPER_OO expr							{	}
+		|	'!' expr									{	fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-4);
+															stack_counter -= 4;
+															fprintf(fp, "addi	$r0, $r0, 0\n");
+															fprintf(fp, "slti	$r0, $r0, 1\n");
+															fprintf(fp, "zeb	$r0, $r0\n");
+															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+															stack_counter += 4;}
+		|	expr OPER_AA expr							{	fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-8);
+															fprintf(fp, "beqz	$r0, .L%d\n", label_counter);
+															fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-4);
+															fprintf(fp, "beqz	$r0, .L%d\n", label_counter);
+															fprintf(fp, "movi	$r0, 1\n");
+															fprintf(fp, "j	.L%d\n", label_counter+1);
+															stack_counter -= 8;
+															
+															fprintf(fp, ".L%d:\n", label_counter);
+															fprintf(fp, "movi	$r0, 0\n");
+															label_counter++;
+															
+															fprintf(fp, ".L%d:\n", label_counter);
+															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+															label_counter++;
+															stack_counter += 4;}
+		|	expr OPER_OO expr							{	fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-8);
+															fprintf(fp, "bnez	$r0, .L%d\n", label_counter);
+															fprintf(fp, "lwi	$r0, [$sp+%d]\n", stack_counter-4);
+															fprintf(fp, "beqz	$r0, .L%d\n", label_counter+1);
+															stack_counter -= 8;
+															
+															fprintf(fp, ".L%d:\n", label_counter);
+															fprintf(fp, "movi	$r0, 1\n");
+															fprintf(fp, "j	.L%d\n", label_counter+2);
+															label_counter++;
+															
+															fprintf(fp, ".L%d:\n", label_counter);
+															fprintf(fp, "movi	$r0, 0\n");
+															label_counter++;
+															
+															fprintf(fp, ".L%d:\n", label_counter);
+															fprintf(fp, "swi	$r0, [$sp+%d]\n", stack_counter);
+															label_counter++;
+															stack_counter += 4;}
 		|	'(' expr ')'								{	}
 		|	val
 		|	ID '(' ')'
